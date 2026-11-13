@@ -142,6 +142,16 @@ uv pip install --python .venv\Scripts\python.exe -r requirements.txt
 
 (Without uv: `python -m venv .venv` then `.venv\Scripts\pip install -r requirements.txt`.)
 
+Shorter commands: activate the environment once per terminal, then plain `python` uses it, e.g.
+
+```powershell
+.venv\Scripts\Activate.ps1
+python -m uvicorn server.app:app --port 8050
+```
+
+Without a virtual environment: `python -m pip install -r requirements.txt` into your main Python,
+then use `python` instead of `.venv\Scripts\python.exe` in every command below.
+
 ### 2. Data (not in the repo)
 
 Put `sales_train_evaluation.csv`, `sell_prices.csv` and `calendar.csv` in `data/raw/`:
@@ -181,6 +191,7 @@ pipeline (or `--stages score,export`) again before viewing the full results.
 
 ```powershell
 .venv\Scripts\python.exe -m uvicorn server.app:app --port 8050
+# or, with the environment activated:  python -m uvicorn server.app:app --port 8050
 ```
 
 Open http://localhost:8050 and stop with Ctrl+C. Tabs: Overview, Results, WAPE & metrics, Tradeoffs,
