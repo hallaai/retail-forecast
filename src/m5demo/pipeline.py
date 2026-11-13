@@ -26,10 +26,12 @@ STATS = ("naive", "seasonal_naive", "auto_ets", "croston_sba", "tsb")
 LGBM = ("lgbm_level", "lgbm_ratio")
 CHRONOS = ("chronos_bolt",)
 ABLATIONS = ("lgbm_level_no_exog", "lgbm_level_price_frozen")
+# LightGBM target-scaling / weighting options (models_lgbm.SCALING); scored, not ensemble candidates.
+LGBM_SCALING = ("lgbm_log1p", "lgbm_local_scaled", "lgbm_level_weighted")
 ENSEMBLE = "ensemble"  # mean of the pair of candidates with the lowest backtest WAPE (point and quantiles)
 ENSEMBLE_CANDIDATES = ("lgbm_level", "lgbm_ratio", "chronos_bolt")
-ALL_METHODS = (*STATS, *LGBM, *CHRONOS, *ABLATIONS)
-NEEDS_CALIBRATION = ("croston_sba", "tsb", "lgbm_level", "lgbm_ratio")
+ALL_METHODS = (*STATS, *LGBM, *CHRONOS, *ABLATIONS, *LGBM_SCALING)
+NEEDS_CALIBRATION = ("croston_sba", "tsb", "lgbm_level", "lgbm_ratio", *LGBM_SCALING)
 
 
 @dataclass(frozen=True)

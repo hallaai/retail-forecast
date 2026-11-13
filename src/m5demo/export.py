@@ -31,8 +31,11 @@ EXTRA_METHODS = {
     "lgbm_level_no_exog": "LightGBM level, no price / calendar features",
     "lgbm_level_price_frozen": "LightGBM level, prices frozen at cutoff",
     "chronos_bolt_median": "Chronos-Bolt, median as point",
+    "lgbm_log1p": "LightGBM, log1p target (squared error, smearing-corrected)",
+    "lgbm_local_scaled": "LightGBM, per-series standardised target (squared error)",
+    "lgbm_level_weighted": "LightGBM, level target, rows weighted by volume",
 }
-CALIBRATED = {"croston_sba", "tsb", "lgbm_level", "lgbm_ratio"}
+CALIBRATED = {"croston_sba", "tsb", "lgbm_level", "lgbm_ratio", "lgbm_log1p", "lgbm_local_scaled", "lgbm_level_weighted"}
 PER_SEGMENT_SAMPLE = 25
 HISTORY_WEEKS = 104
 

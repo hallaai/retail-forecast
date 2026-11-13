@@ -51,7 +51,7 @@ def main() -> None:
         h = config.HORIZON
         runners = {
             **{m: _stats_runner(m, calendar, h) for m in models_stats.METHODS},
-            **{v: _lgbm_runner(v, exog, h) for v in (*models_lgbm.VARIANTS, *models_lgbm.ABLATIONS)},
+            **{v: _lgbm_runner(v, exog, h) for v in models_lgbm.SPECS},
             "chronos_bolt": lambda c: models_chronos.forecast(c.train, c.window.cutoff, h),
         }
         models_chronos.warm_up()  # model load (~80 s first time) is not part of the timed forecast

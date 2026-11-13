@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-11-13 (LightGBM target scaling)
+
+- Three new LightGBM variants: log1p target with smearing, per-series standardised target (both
+  squared error), and volume-weighted rows. A guard rejects Tweedie/Poisson/Gamma with signed targets.
+  Details and results in [CHANGES.md](CHANGES.md) and
+  [docs/lightgbm-target-scaling.md](docs/lightgbm-target-scaling.md).
+
 ## 2026-11-13 (later)
 
 - Data tab: row and series counts, every processed table's columns (meaning, type, distinct, missing, range),

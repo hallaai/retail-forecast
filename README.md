@@ -123,6 +123,7 @@ Companion metrics used here:
 | Chronos zero-shot | No training; best native ranges | Median point runs low; no covariates here; ~3× LightGBM's CPU time; hard to explain | Fast strong baseline, ranges without calibration, ensemble member |
 | Ensemble (LightGBM + Chronos) | Most dependable ranges, lowest WAPE in all 5 windows | WAPE gain within noise; two pipelines, ~4× compute | Range quality drives the decision (safety stock) |
 | Ratio target (y ÷ trailing mean) | One scale for all items | No gain here: level wins WAPE in all 4 backtests and pinball in all 5 windows | Test it, don't assume it helps |
+| Other target scaling (log1p, per-series standardising, volume weights) | See [docs/lightgbm-target-scaling.md](docs/lightgbm-target-scaling.md) | Standardising or differencing cannot be combined with Tweedie/Poisson (negative targets) | Compare on backtests; table under Results |
 | Seasonal ETS (m = 52) | Yearly seasonality | 12× slower (0.32 s vs 0.027 s per series), 52 states from ~5 cycles | Dropped |
 
 ---
@@ -236,7 +237,7 @@ Retail-forecast/
 │   ├── calibration.py      backtest-residual quantiles for point-only methods (pure)
 │   ├── forecast_frame.py   the one forecast schema (f, q10, q50, q90), clipping, sanitising
 │   ├── models_stats.py     StatsForecast: Naive, SeasonalNaive(52), AutoETS, CrostonSBA, TSB
-│   ├── models_lgbm.py      MLForecast + LightGBM: level, ratio, and two ablations
+│   ├── models_lgbm.py      MLForecast + LightGBM: one Spec per variant (scaling, loss, weights, features)
 │   ├── models_chronos.py   Chronos-Bolt-small zero-shot (point = mean of 9 deciles)
 │   ├── pipeline.py         orchestration, forecast cache + timings, calibration, ensemble, scoring
 │   ├── evaluate.py         join forecasts with actuals, score per segment
@@ -271,7 +272,9 @@ Retail-forecast/
   Christmas / Super Bowl / Easter flags, week of year, department / category / store / state. Trained
   on the last 156 weeks, recursive 12-step forecast. Variants: level target; ratio target (units ÷
   trailing 26-week mean); ablations without price/calendar features and with prices frozen at the
-  cutoff.
+  cutoff; and three target-scaling options (log1p with smearing, per-series standardising, volume-
+  weighted rows), described with the Tweedie pitfall in
+  [docs/lightgbm-target-scaling.md](docs/lightgbm-target-scaling.md).
 * **Prices.** Future prices are treated as known in advance, like planned prices and markdowns.
   M5 gives realised shelf prices, so this is the standard M5 assumption; the frozen-price ablation
   shows it is worth 0.3 points.

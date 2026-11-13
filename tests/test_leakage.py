@@ -14,7 +14,7 @@ def test_mlforecast_preprocess_keeps_row_count_and_order(panel, static, calendar
     exog = features.build_exog(panel.assign(price=2.0), static, calendar)
     df = panel[panel["week"] <= 127].merge(exog, on=["unique_id", "week"]).sample(frac=1.0, random_state=3)
     df = df.sort_values(["unique_id", "ds"]).reset_index(drop=True)
-    X = models_lgbm._mlf().preprocess(df.drop(columns="week"), static_features=features.STATIC_COLS, dropna=False)
+    X = models_lgbm._mlf(models_lgbm.SPECS["lgbm_level"]).preprocess(df.drop(columns="week"), static_features=features.STATIC_COLS, dropna=False)
     assert len(X) == len(df)
     assert (X["unique_id"].to_numpy() == df["unique_id"].to_numpy()).all()
     expected_lag1 = df.groupby("unique_id")["y"].shift(1).to_numpy()

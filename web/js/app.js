@@ -149,6 +149,23 @@ function renderResults(summary, get) {
   segControl(document.getElementById("stability-seg"), SEGMENTS.map((s) => [s, SEGMENT_LABEL[s]]), "all", drawStability);
   drawStability("all");
   renderRatioTable(document.getElementById("ratio-table"), { get });
+  renderCompare(document.getElementById("scaling-table"), {
+    get,
+    rows: [
+      { id: "lgbm_level", label: "No scaling: units, Tweedie" },
+      { id: "lgbm_ratio", label: "Ratio to 26-week mean, Tweedie" },
+      { id: "lgbm_log1p", label: "log1p, squared error + smearing" },
+      { id: "lgbm_local_scaled", label: "Per-series standardised, squared error" },
+      { id: "lgbm_level_weighted", label: "No scaling, volume-weighted rows" },
+    ],
+    cols: [
+      { metric: "wape", segment: "all", label: "WAPE", sub: "all series" },
+      { metric: "wape", segment: "hit", label: "WAPE", sub: "hits" },
+      { metric: "wape", segment: "sparse", label: "WAPE", sub: "sparse" },
+      { metric: "bias", segment: "all", label: "Bias", sub: "all series" },
+      { metric: "swql", segment: "all", label: "Pinball", sub: "all series" },
+    ],
+  });
 }
 
 const extraLabel = (summary, id) =>

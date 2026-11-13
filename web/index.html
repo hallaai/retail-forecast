@@ -264,6 +264,11 @@ footer { color: var(--muted); font-size: 12px; padding-top: 24px; }
       <p class="muted small">Same features and model. The ratio variant divides each series by its trailing 26-week mean before training, so a slow seller and a hit look alike to the model.</p>
       <div class="table-wrap"><table id="ratio-table"></table></div>
     </div>
+    <div class="card">
+      <h2>LightGBM: scale the target or not</h2>
+      <p class="muted small">One global model, five ways to handle 30k series of very different size. Level and ratio use Tweedie loss (its log link already makes effects multiplicative). log1p and per-series standardising need squared-error loss: Tweedie refuses negative targets. Weighted = level target with rows weighted by the series' 52-week volume. Test window; backtest mean in brackets; ● best in column.</p>
+      <div class="table-wrap"><table id="scaling-table"></table></div>
+    </div>
   </section>
 
   <!-- Metrics -->

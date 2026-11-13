@@ -67,9 +67,10 @@ def test_stats_methods_cover_every_series_and_horizon(panel, calendar, method):
     assert fc["q10"].notna().all() == has_q
 
 
-@pytest.mark.parametrize("variant", models_lgbm.VARIANTS)
+@pytest.mark.parametrize("variant", (*models_lgbm.VARIANTS, *models_lgbm.SCALING))
 def test_lgbm_variants_forecast_all_series(panel, calendar, static, variant, monkeypatch):
-    monkeypatch.setitem(config.LGBM_PARAMS, "n_estimators", 20)
+    # 150 trees: with volume weights, small series get small gradients and need more rounds to reach their level.
+    monkeypatch.setitem(config.LGBM_PARAMS, "n_estimators", 150)
     monkeypatch.setitem(config.LGBM_PARAMS, "min_child_samples", 5)
     exog = features.build_exog(panel.assign(price=2.0), static, calendar)
     w = splits.Window("test", cutoff=127, horizon=12)
@@ -81,6 +82,28 @@ def test_lgbm_variants_forecast_all_series(panel, calendar, static, variant, mon
     recent = train[train["week"] > 100].groupby("unique_id")["y"].mean()
     ratio = fc.groupby("unique_id")["f"].mean() / (recent + 0.5)
     assert ratio.median() == pytest.approx(1.0, abs=0.6)
+
+
+@pytest.mark.parametrize("objective", sorted(models_lgbm.NON_NEGATIVE_OBJECTIVES))
+def test_signed_target_with_log_link_objective_is_rejected(objective):
+    # The common mistake: LocalStandardScaler (or Differences) + Tweedie/Poisson. LightGBM needs labels >= 0.
+    with pytest.raises(ValueError, match="needs targets >= 0"):
+        models_lgbm.validate(models_lgbm.Spec(target="local_standard", objective=objective))
+
+
+def test_every_registered_variant_is_valid():
+    for spec in models_lgbm.SPECS.values():
+        models_lgbm.validate(spec)
+    assert set(models_lgbm.SPECS) == {*models_lgbm.VARIANTS, *models_lgbm.SCALING, *models_lgbm.ABLATIONS}
+
+
+def test_volume_weights_follow_trailing_volume_and_average_one():
+    train = pd.DataFrame({"unique_id": ["big"] * 52 + ["small"] * 52, "week": list(range(52)) * 2,
+                          "y": [100.0] * 52 + [1.0] * 52})
+    w = models_lgbm.volume_weights(train, cutoff=51, row_ids=pd.Series(["big", "small", "small", "gone"]))
+    assert w.mean() == pytest.approx(1.0)
+    assert w[0] / w[1] == pytest.approx(100.1 / 1.1)   # trailing mean + eps
+    assert w[1] == w[2] and w[3] < w[1]                   # unknown series get the floor weight
 
 
 def test_lgbm_feature_importance_covers_model_features(panel, calendar, static, monkeypatch):
