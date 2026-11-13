@@ -1,0 +1,24 @@
+# Python / tooling
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Data: raw M5 files (competition rules: do not redistribute) and regenerable intermediates
+data/raw/
+data/processed/
+data/forecasts/
+data/results/*/test_forecasts.parquet
+data/*.log
+data/*.err
+
+# Kept in git: data/results/full/scores.csv (all scores) and web/data/*.json (what the page shows)
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

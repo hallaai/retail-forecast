@@ -1,0 +1,391 @@
+<title>M5 Forecast Bench</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>
+/* Layout: app shell like Food Recs Lab. Sticky top bar (brand, tab nav, theme toggle), one tab visible at a time,
+   wide main (max 1400px) of tiles and cards. Dark-first: bare :root holds the dark palette. */
+:root {
+  color-scheme: dark;
+  --bg: #121211; --surface: #1a1a19; --surface-2: #232321; --border: #33332f;
+  --text: #f0efec; --text-2: #c3c2b7; --muted: #94938b; --grid: #2c2c29;
+  --accent: #3987e5; --accent-ink: #ffffff;
+  --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; --s5: #d55181; --s6: #2f9e2f; --s7: #9085e9; --s8: #e66767; --s0: #9a9990;
+  --good: #3fbf6a; --warn: #e2a33d; --bad: #e66767;
+  --heat: 57, 135, 229; --heat-over: 217, 89, 38; --heat-max: 0.42;
+  --radius: 10px; --shadow: 0 1px 2px rgb(0 0 0 / 30%);
+  --mono: ui-monospace, SFMono-Regular, "Cascadia Mono", Consolas, monospace;
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    color-scheme: light;
+    --bg: #f6f5f2; --surface: #fcfcfb; --surface-2: #f0efec; --border: #e2e0da;
+    --text: #0b0b0b; --text-2: #52514e; --muted: #77756f; --grid: #e7e5df;
+    --accent: #2a78d6;
+    --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --s4: #eda100; --s5: #e87ba4; --s6: #008300; --s7: #6250d6; --s8: #e34948; --s0: #8a8983;
+    --good: #0c8a3c; --warn: #b07700; --bad: #d03b3b;
+    --heat: 42, 120, 214; --heat-over: 235, 104, 52; --heat-max: 0.36;
+    --shadow: 0 1px 2px rgb(0 0 0 / 6%);
+  }
+}
+:root[data-theme="light"] {
+  color-scheme: light;
+  --bg: #f6f5f2; --surface: #fcfcfb; --surface-2: #f0efec; --border: #e2e0da;
+  --text: #0b0b0b; --text-2: #52514e; --muted: #77756f; --grid: #e7e5df;
+  --accent: #2a78d6;
+  --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --s4: #eda100; --s5: #e87ba4; --s6: #008300; --s7: #6250d6; --s8: #e34948; --s0: #8a8983;
+  --good: #0c8a3c; --warn: #b07700; --bad: #d03b3b;
+  --heat: 42, 120, 214; --heat-over: 235, 104, 52; --heat-max: 0.36;
+  --shadow: 0 1px 2px rgb(0 0 0 / 6%);
+}
+/* method -> fixed categorical slot (color follows the method everywhere) */
+:root {
+  --s-lgbm_ratio: var(--s1); --s-chronos_bolt: var(--s2); --s-ensemble: var(--s3); --s-auto_ets: var(--s4);
+  --s-tsb: var(--s5); --s-lgbm_level: var(--s6); --s-croston_sba: var(--s7); --s-seasonal_naive: var(--s8);
+  --s-naive: var(--s0); --s-actual: var(--text);
+}
+
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { margin: 0; }
+body { background: var(--bg); color: var(--text); font: 14px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 1001; background: var(--surface); }
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+h1 { font-size: 22px; margin: 0 0 4px; text-wrap: balance; }
+h2 { font-size: 16px; margin: 0 0 10px; text-wrap: balance; }
+h3 { font-size: 14px; margin: 0 0 8px; color: var(--text-2); }
+p { margin: 0 0 10px; }
+code, .mono { font-family: var(--mono); font-size: 0.92em; }
+.lead { color: var(--text-2); max-width: 80ch; }
+.muted { color: var(--muted); }
+.small { font-size: 12px; }
+
+.top {
+  position: sticky; top: env(safe-area-inset-top, 0px); z-index: 1000; display: flex; gap: 16px; align-items: center;
+  padding-block: 10px; padding-left: max(20px, env(safe-area-inset-left, 0px)); padding-right: max(20px, env(safe-area-inset-right, 0px));
+  background: var(--surface); border-bottom: 1px solid var(--border);
+}
+.brand { font-weight: 700; color: var(--text); white-space: nowrap; }
+.brand:hover { text-decoration: none; }
+#nav { display: flex; gap: 4px; overflow-x: auto; flex: 1; scrollbar-width: none; }
+#nav a { padding: 6px 10px; border-radius: 8px; color: var(--text-2); white-space: nowrap; }
+#nav a.active { background: var(--surface-2); color: var(--text); font-weight: 600; }
+#nav a:hover { text-decoration: none; background: var(--surface-2); }
+
+main {
+  max-width: 1400px; margin: 0 auto; padding-block: 20px 60px;
+  padding-left: max(20px, env(safe-area-inset-left, 0px)); padding-right: max(20px, env(safe-area-inset-right, 0px));
+}
+.page { display: grid; gap: 16px; }
+.page-head { display: grid; gap: 2px; }
+.page-head p { margin: 0; }
+.grid { display: grid; gap: 16px; }
+.g2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.g-wide-left { grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); }
+.g2 > .card:last-child:nth-child(odd) { grid-column: 1 / -1; }
+.g3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.tiles { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; box-shadow: var(--shadow); min-width: 0; }
+.card > h2 + p, .card > h2 + .muted { margin-top: -6px; }
+.tile .v { font-size: 24px; font-weight: 650; font-variant-numeric: tabular-nums; line-height: 1.25; }
+.tile .k { color: var(--text-2); font-size: 12px; }
+.tile .d { color: var(--muted); font-size: 12px; }
+.note { background: var(--surface-2); border-radius: 8px; padding: 10px 12px; color: var(--text-2); font-size: 13px; }
+.badge, .pill { display: inline-block; padding: 1px 7px; border-radius: 99px; background: var(--surface-2); color: var(--text-2); font-size: 12px; white-space: nowrap; }
+
+.findings { display: grid; gap: 12px; grid-template-columns: repeat(3, minmax(0, 1fr)); counter-reset: f; }
+.finding { display: grid; gap: 6px; align-content: start; }
+.finding h2 { display: flex; gap: 10px; align-items: baseline; margin: 0; }
+.finding h2::before { counter-increment: f; content: counter(f); font-variant-numeric: tabular-nums; color: var(--accent); font-weight: 700; }
+.finding p { color: var(--text-2); margin: 0; }
+
+.filters, .controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+select, input, button { font: inherit; color: var(--text); background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 6px 10px; }
+button { cursor: pointer; }
+button.ghost { background: transparent; }
+.seg-control { display: inline-flex; flex-wrap: wrap; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+.seg-control button { border: 0; border-radius: 0; background: var(--surface); color: var(--text-2); }
+.seg-control button[aria-pressed="true"] { background: var(--surface-2); color: var(--text); font-weight: 600; }
+.chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; color: var(--text-2); font-size: 13px; }
+.chip[aria-pressed="true"] { border-color: var(--text-2); color: var(--text); background: var(--surface-2); }
+.chip .sw { width: 10px; height: 10px; border-radius: 50%; background: var(--c); opacity: 0.35; }
+.chip[aria-pressed="true"] .sw { opacity: 1; }
+.eyebrow { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+label.ctl { display: inline-flex; gap: 8px; align-items: center; color: var(--muted); font-size: 13px; }
+button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.table-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+th, td { padding: 7px 8px; border-bottom: 1px solid var(--border); text-align: right; white-space: nowrap; }
+th:first-child, td:first-child { text-align: left; }
+th { color: var(--text-2); font-weight: 600; font-size: 12px; vertical-align: bottom; }
+th .seg-name { display: block; color: var(--text); font-size: 13px; }
+th .sub { display: block; color: var(--muted); font-weight: 400; }
+tbody tr:hover td:first-child { color: var(--text); }
+tr.family-break td { border-top: 2px solid var(--border); }
+td.best { font-weight: 700; color: var(--text); }
+td.best::after { content: " ●"; font-size: 0.65em; vertical-align: 1px; color: var(--text-2); }
+.method-name { display: inline-flex; align-items: center; }
+.dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 8px; background: var(--c); flex: none; }
+.family-tag { font-size: 11px; color: var(--muted); margin-left: 6px; }
+
+.chart { width: 100%; position: relative; min-width: 0; }
+.chart svg { display: block; width: 100%; height: auto; overflow: visible; }
+.chart text { fill: var(--muted); font-size: 11px; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; }
+.chart .lbl { fill: var(--text-2); }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 12px; color: var(--text-2); margin-bottom: 6px; }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.legend i { width: 14px; height: 3px; border-radius: 2px; background: var(--c); }
+.legend i.band { height: 10px; opacity: 0.3; }
+.tooltip {
+  position: absolute; z-index: 20; pointer-events: none; background: var(--surface); color: var(--text);
+  border: 1px solid var(--border); border-radius: 8px; padding: 8px 11px; font-size: 12px; line-height: 1.5;
+  box-shadow: 0 4px 14px rgb(0 0 0 / 25%); min-width: 160px;
+}
+.tooltip .tt-date { font-weight: 650; margin-bottom: 3px; }
+.tooltip .tt-row { display: flex; justify-content: space-between; gap: 14px; }
+.tooltip .tt-row span:first-child { display: inline-flex; align-items: center; gap: 6px; color: var(--text-2); }
+.tooltip .tt-row i { width: 8px; height: 8px; border-radius: 50%; background: var(--c); }
+.tooltip .tt-row b { font-weight: 600; font-variant-numeric: tabular-nums; }
+
+.formula { font: 15px var(--mono); background: var(--surface-2); border-radius: 8px; padding: 12px 14px; overflow-x: auto; margin-bottom: 12px; }
+.prose { color: var(--text-2); }
+.prose ul { margin: 0; padding-left: 18px; display: grid; gap: 6px; }
+.prose strong { color: var(--text); }
+.example input { width: 70px; text-align: right; padding: 3px 6px; font-variant-numeric: tabular-nums; }
+.metric-out { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 12px; }
+.metric-out div { background: var(--surface-2); border-radius: 8px; padding: 8px 10px; }
+.metric-out b { display: block; font-size: 20px; font-weight: 650; font-variant-numeric: tabular-nums; }
+.metric-out span { font-size: 12px; color: var(--muted); }
+
+.explorer { display: grid; grid-template-columns: 260px minmax(0, 1fr); gap: 16px; align-items: start; }
+.series-list { max-height: 520px; overflow-y: auto; display: grid; gap: 2px; padding: 6px; }
+.series-item { display: flex; justify-content: space-between; align-items: center; gap: 8px; border: 0; border-radius: 6px; padding: 6px 8px; background: transparent; color: var(--text-2); font: 12px var(--mono); text-align: left; }
+.series-item:hover { background: var(--surface-2); }
+.series-item[aria-current="true"] { background: var(--surface-2); color: var(--text); box-shadow: inset 3px 0 0 var(--accent); }
+.series-head { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: baseline; margin-bottom: 6px; }
+.series-head h2 { font-family: var(--mono); margin: 0; }
+.wape-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.wape-chips span:not(.eyebrow) { font-size: 12px; padding: 2px 8px; border-radius: 99px; background: var(--surface-2); color: var(--text-2); font-variant-numeric: tabular-nums; }
+.wape-chips span b { color: var(--text); }
+.kv { display: grid; grid-template-columns: max-content 1fr; gap: 6px 14px; margin: 0; font-size: 13px; }
+.kv dt { color: var(--muted); }
+.kv dd { margin: 0; color: var(--text-2); }
+.hbars { display: grid; gap: 6px; }
+.hbar-row { display: grid; grid-template-columns: 90px minmax(0, 1fr); gap: 10px; align-items: center; font-size: 13px; color: var(--text-2); }
+.hbar { position: relative; display: flex; align-items: center; gap: 8px; min-width: 120px; }
+.hbar i { display: block; height: 12px; min-width: 2px; border-radius: 3px; background: var(--c); }
+.hbar b { font-weight: 600; font-variant-numeric: tabular-nums; color: var(--text); font-size: 12px; white-space: nowrap; }
+table.imp td.bar-cell { width: 55%; text-align: left; }
+td.warn { color: var(--warn); }
+details.tbl { border-top: 1px solid var(--border); padding: 10px 0; }
+details.tbl summary { cursor: pointer; }
+details.tbl[open] summary { margin-bottom: 8px; }
+.state { padding: 30px; text-align: center; color: var(--text-2); display: flex; gap: 12px; align-items: center; justify-content: center; }
+.state.error { color: var(--bad); }
+footer { color: var(--muted); font-size: 12px; padding-top: 24px; }
+
+@media (max-width: 1000px) {
+  .findings, .g3 { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 900px) {
+  .g2, .explorer { grid-template-columns: minmax(0, 1fr); }
+  .series-list { max-height: 220px; }
+  .top { flex-wrap: wrap; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+  #nav { order: 3; flex-basis: 100%; }
+  main { padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+  .metric-out { grid-template-columns: minmax(0, 1fr); }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<header class="top">
+  <a class="brand" href="#overview">M5 Forecast Bench</a>
+  <nav id="nav" aria-label="Sections">
+    <a href="#overview">Overview</a>
+    <a href="#results">Results</a>
+    <a href="#metrics">WAPE &amp; metrics</a>
+    <a href="#tradeoffs">Tradeoffs</a>
+    <a href="#explorer">Explorer</a>
+    <a href="#data">Data</a>
+    <a href="#method">Method</a>
+  </nav>
+  <button id="theme" class="ghost" type="button" aria-label="Switch between dark and light theme">Light</button>
+</header>
+
+<main id="view" aria-live="polite">
+  <div id="load-status" class="state" hidden></div>
+
+  <!-- Overview -->
+  <section class="page" data-page="overview" hidden>
+    <div class="page-head">
+      <h1>Weekly demand forecasting on Walmart M5</h1>
+      <p class="lead">Five statistical baselines, a global LightGBM in two target designs and a zero-shot foundation model, each forecasting 12 weeks ahead for every item × store series, scored by segment.</p>
+    </div>
+    <div class="tiles" id="tiles"></div>
+    <div class="findings" id="findings"></div>
+    <div class="grid g2 g-wide-left">
+      <div class="card">
+        <h2>Test WAPE by segment</h2>
+        <p class="muted small">Lower is better. ● best in column. Full table with all metrics under Results.</p>
+        <div class="table-wrap"><table id="overview-table"></table></div>
+      </div>
+      <div class="card">
+        <h2>Total units, all series</h2>
+        <p class="muted small">Last year of history and the 12 test weeks; best method vs the seasonal-naive baseline.</p>
+        <div class="legend" id="overview-legend"></div>
+        <div class="chart" id="overview-chart"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Results -->
+  <section class="page" data-page="results" hidden>
+    <div class="page-head">
+      <h1>Method × segment</h1>
+      <p class="lead">Every method scored on the same series and weeks. Segments are fixed at each forecast origin from history only.</p>
+    </div>
+    <div class="card">
+      <div class="filters">
+        <div class="seg-control" role="group" aria-label="Metric" id="metric-control"></div>
+        <label class="ctl" for="window-select">Window <select id="window-select"></select></label>
+      </div>
+      <div class="table-wrap" style="margin-top:12px"><table id="score-table"></table></div>
+      <p class="muted small" id="table-note" style="margin:10px 0 0"></p>
+    </div>
+    <div class="card">
+      <h2>Stability across windows</h2>
+      <p class="muted small">WAPE per 12-week window for the chosen segment. A method that wins one window and loses the next is a risky pick, and a gap smaller than the window-to-window swing is not a real difference.</p>
+      <div class="filters" style="margin-bottom:10px"><div class="seg-control" role="group" aria-label="Segment" id="stability-seg"></div></div>
+      <div class="table-wrap"><table id="stability-table"></table></div>
+    </div>
+    <div class="card">
+      <h2>LightGBM: level target vs ratio target</h2>
+      <p class="muted small">Same features and model. The ratio variant divides each series by its trailing 26-week mean before training, so a slow seller and a hit look alike to the model.</p>
+      <div class="table-wrap"><table id="ratio-table"></table></div>
+    </div>
+  </section>
+
+  <!-- Metrics -->
+  <section class="page" data-page="metrics" hidden>
+    <div class="page-head">
+      <h1>What WAPE measures</h1>
+      <p class="lead">The headline metric of retail forecasting, and the three metrics that keep it honest.</p>
+    </div>
+    <div class="grid g2">
+      <div class="card prose">
+        <p><strong>WAPE</strong> (weighted absolute percentage error) is total absolute error divided by total actual sales, over every item and week you score:</p>
+        <div class="formula">WAPE = Σ |actual − forecast| / Σ actual</div>
+        <ul>
+          <li>Read it as units got wrong per unit sold. WAPE 0.40 means 40 mis-forecast units for every 100 sold. Retail teams often quote <code>1 − WAPE</code> as forecast accuracy.</li>
+          <li>It works with zeros. MAPE divides by each week’s actual and blows up on a zero-sales week, which is most weeks for a slow seller.</li>
+          <li>It is volume-weighted. A hit selling 200 a week moves WAPE far more than a slow item selling 2, so WAPE tracks the business impact of errors, not the average series.</li>
+          <li>It rewards the median. Absolute error is minimised by the median, so for a sparse item a forecast of 0 can score well while leaving the shelf empty. Always report <strong>bias</strong> next to WAPE.</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h2>Try it: one hit, one regular, one slow seller</h2>
+        <p class="muted small">Edit a forecast and watch which metric moves. One week each.</p>
+        <div class="table-wrap example"><table id="wape-example"></table></div>
+        <div class="metric-out" id="wape-out"></div>
+      </div>
+    </div>
+    <div class="card">
+      <h2>WAPE rewards the median: Chronos with two point forecasts</h2>
+      <p class="muted small">The same Chronos run scored twice: once with the median as the point forecast, once with the mean of its deciles. Test window; backtest mean in brackets.</p>
+      <div class="table-wrap"><table id="median-table"></table></div>
+    </div>
+    <div class="card">
+      <h2>The companion metrics</h2>
+      <div class="table-wrap"><table id="metric-defs"></table></div>
+    </div>
+  </section>
+
+  <!-- Tradeoffs -->
+  <section class="page" data-page="tradeoffs" hidden>
+    <div class="page-head">
+      <h1>Tradeoffs</h1>
+      <p class="lead">Accuracy is one axis. Compute cost, calibrated ranges, stability and upkeep decide what goes to production.</p>
+    </div>
+    <div class="grid g2">
+      <div class="card">
+        <h2>Accuracy vs compute</h2>
+        <p class="muted small">Median of 5 timed runs: wall-clock time to forecast all series once, 12 weeks ahead, on a 12-core laptop CPU (log scale). Hover a dot for the range. Sorted by test WAPE, best first.</p>
+        <div class="chart" id="cost-chart"></div>
+      </div>
+      <div class="card">
+        <h2>Do the 80% ranges hold 80%?</h2>
+        <p class="muted small">Share of test actuals inside each method’s 10th–90th percentile range, all series. Left of 80% = too narrow, right = too wide.</p>
+        <div class="chart" id="coverage-chart"></div>
+      </div>
+    </div>
+    <div class="card">
+      <h2>What the features are worth (LightGBM, level target)</h2>
+      <p class="muted small">Ablations of the same model: all features, no price and calendar features (lags, rolling means, week of year and store / department only), and prices frozen at the forecast origin (no knowledge of planned price changes).</p>
+      <div class="table-wrap"><table id="ablation-table"></table></div>
+    </div>
+    <div class="grid g2" id="tradeoff-cards"></div>
+  </section>
+
+  <!-- Explorer -->
+  <section class="page" data-page="explorer" hidden>
+    <div class="page-head">
+      <h1>Explorer</h1>
+      <p class="lead" id="explorer-sub">Weekly totals per segment, and a fixed random sample of 25 series per segment with two years of history and the 12 test weeks.</p>
+    </div>
+    <div class="card">
+      <h2>Total units in the test window</h2>
+      <p class="muted small">Summed over the series in the segment. No range drawn: per-item percentiles do not add up to a percentile of the total.</p>
+      <div class="filters">
+        <div class="seg-control" role="group" aria-label="Segment" id="total-seg"></div>
+      </div>
+      <div class="filters" id="total-methods" role="group" aria-label="Methods shown" style="margin-top:8px"></div>
+      <div class="legend" id="total-legend" style="margin-top:12px"></div>
+      <div class="chart" id="total-chart"></div>
+    </div>
+    <div class="card">
+      <h2>Single series</h2>
+      <div class="filters">
+        <div class="seg-control" role="group" aria-label="Segment filter" id="explorer-seg"></div>
+        <label class="ctl" for="series-search" id="search-wrap" hidden>Any series
+          <input type="search" id="series-search" placeholder="FOODS_3_090_CA_3" maxlength="40" autocomplete="off">
+        </label>
+      </div>
+      <div class="filters" id="explorer-methods" role="group" aria-label="Methods shown" style="margin-top:8px"></div>
+      <div class="explorer" style="margin-top:12px">
+        <div class="card series-list" id="series-list" role="list" aria-label="Sample series"></div>
+        <div>
+          <div class="series-head" id="series-head"></div>
+          <div class="legend" id="series-legend"></div>
+          <div class="chart" id="series-chart"></div>
+          <div class="wape-chips" id="series-wape"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Data -->
+  <section class="page" data-page="data" hidden>
+    <div class="page-head">
+      <h1>The data</h1>
+      <p class="lead">What the models were given: tables and columns, how many rows, where the gaps are and how they are handled, and which features LightGBM leans on.</p>
+    </div>
+    <div class="page" id="data-body"></div>
+  </section>
+
+  <!-- Method -->
+  <section class="page" data-page="method" hidden>
+    <div class="page-head">
+      <h1>Method and limitations</h1>
+      <p class="lead">How the data was prepared, how each model was run, and what this study does not show.</p>
+    </div>
+    <div class="grid g2">
+      <div class="card prose" id="setup"></div>
+      <div class="card prose" id="limits"></div>
+    </div>
+  </section>
+
+  <footer>Data: M5 Forecasting competition (Walmart, 2011–2016), aggregated to Saturday–Friday weeks. StatsForecast, MLForecast + LightGBM, Chronos. <span id="generated"></span></footer>
+</main>
+
+<script type="module" src="js/app.js"></script>

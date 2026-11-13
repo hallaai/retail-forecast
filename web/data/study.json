@@ -1,0 +1,128 @@
+{
+  "findings": [
+    {
+      "title": "A global LightGBM is the best single model, and the gain comes from learning across series",
+      "body": "Test WAPE 41.1% against 43.3% for the best statistical model (AutoETS) and 62.2% for seasonal naive, and the best single model in all five windows. The ablations show where the 2 points come from: dropping every price and calendar feature costs only 0.3 points on test (0.9 on backtests), and freezing prices at the forecast origin costs 0.3. Most of the gain is one model learning demand shapes from 30k series' lags, which a per-series model cannot do."
+    },
+    {
+      "title": "Zero-shot Chronos gives the best ranges, and its point definition matters",
+      "body": "With no training or features, Chronos-Bolt matches AutoETS on WAPE (42.7% vs 43.3%, within noise) and has the best pinball loss of any single model in every window. Its built-in point output is the median: same WAPE, but bias −10.7% against −6.1% when the point is the mean of its deciles, so WAPE alone would not tell you the forecast runs low. Averaged with LightGBM (pair chosen on backtests) it gives the best pinball in all five windows, 27.0%; on WAPE the ensemble only ties LightGBM."
+    },
+    {
+      "title": "Sparse items have no stable winner, and a selection effect makes everyone look low",
+      "body": "The best method for sparse items changes from window to window (AutoETS, Chronos, the ensemble, LightGBM). Items chosen for recent zeros sell 30–68% more over the next 12 weeks than in their trailing year, a regression to the mean helped by stock-outs that look like zero demand. LightGBM is close to unbiased on sparse items in the backtests (−3%) but −12% in the test window, where the jump was largest; Chronos and TSB are low in every window. For the long tail, decide on calibrated quantiles and watch bias, not WAPE alone."
+    }
+  ],
+  "tradeoffs": [
+    {
+      "title": "Local statistical models",
+      "rows": [
+        [
+          "Good at",
+          "Seconds to run, nothing to train or tune, easy to explain per item, a sound floor for every segment."
+        ],
+        [
+          "Weak at",
+          "Cannot see price, promotions or events. Learns nothing across items, so new and sparse items get little signal."
+        ],
+        [
+          "Use when",
+          "As the benchmark every other model has to beat, and as the fallback when a better model fails."
+        ]
+      ]
+    },
+    {
+      "title": "Global LightGBM",
+      "rows": [
+        [
+          "Good at",
+          "One model learns shared demand shapes across all 30k series: best single model in every window. Can use price, discount, SNAP days and holidays, though here they add only 0.3–0.9 points."
+        ],
+        [
+          "Weak at",
+          "A feature pipeline and retraining to maintain. Recursive multi-step lets errors compound over 12 weeks. Point forecast only, so ranges need a calibration step."
+        ],
+        [
+          "Use when",
+          "There is history across many related items to learn from: the production default for retail."
+        ]
+      ]
+    },
+    {
+      "title": "Chronos zero-shot",
+      "rows": [
+        [
+          "Good at",
+          "No training or feature work. On par with AutoETS on WAPE and the best ranges (pinball) of any single model in every window."
+        ],
+        [
+          "Weak at",
+          "Its built-in point is the median, which runs low (bias −10.7%; −6.1% with the decile mean). Still low on sparse items (−26%). No covariates in this setup. Heaviest to run: median 3.6 min per pass on CPU, and Chronos-2 measured 8.5× slower than Bolt-small. Hard to explain one forecast."
+        ],
+        [
+          "Use when",
+          "A strong baseline on new data in minutes, range forecasts without a calibration step, or as one member of an ensemble with a bias check."
+        ]
+      ]
+    },
+    {
+      "title": "Ensemble (LightGBM level + Chronos)",
+      "rows": [
+        [
+          "Good at",
+          "Best pinball loss in all 5 windows (27.0% on test) and the lowest WAPE in all 5, so the most dependable ranges for safety stock."
+        ],
+        [
+          "Weak at",
+          "The WAPE gain over LightGBM alone is 0.1–0.8 points, within window-to-window noise. Runs two pipelines, about 4× the compute of LightGBM."
+        ],
+        [
+          "Use when",
+          "Range quality drives the decision (safety stock, service levels) and the extra compute is affordable."
+        ]
+      ]
+    },
+    {
+      "title": "Target as a ratio to the recent mean",
+      "rows": [
+        [
+          "Good at",
+          "Puts slow sellers and hits on one scale, so the model learns shapes rather than volume levels. Lower bias on hits and middle items in the test window."
+        ],
+        [
+          "Weak at",
+          "Here it does not pay: the level target has lower WAPE in all 4 backtests and lower pinball in all 5 windows; they tie on test. The scale is frozen at the forecast origin, and near-zero scales need an epsilon floor."
+        ],
+        [
+          "Use when",
+          "Volume spans orders of magnitude and the model has no other way to share patterns across scales. Test it against the level target; do not assume it helps."
+        ]
+      ]
+    }
+  ],
+  "setup": [
+    "Daily M5 sales summed to Saturday–Friday weeks; the trailing 2-day partial week is dropped, never fitted.",
+    "Dense weekly grid from each series' first sale; zero weeks kept. Series with no sale before a cutoff are not scored for that window (cold start is out of scope).",
+    "Rolling origin: four 12-week backtest windows, then the final 12 weeks as test. Segments and scales are computed per window from training data only.",
+    "Segments: new = under 52 weeks since first sale; sparse = 30% or more zero weeks in the last 52; hit = top 10% of the remaining series by 52-week volume; middle = the rest.",
+    "StatsForecast: Naive, SeasonalNaive(52), AutoETS (non-seasonal: with a 52-week season it ran 12× slower and fits 52 seasonal states from 5 cycles), CrostonSBA, TSB(0.1, 0.1).",
+    "MLForecast + LightGBM (Tweedie): lags 1, 2, 4, 52; rolling means 4, 13, 52; price, discount vs 52-week max, price vs department, SNAP days, event types, Thanksgiving / Christmas / Super Bowl / Easter flags, week of year, department / category / store / state. Trained on the last 156 weeks; recursive 12-step forecast.",
+    "Prices in the forecast weeks are treated as known in advance, like a retailer's planned prices and markdowns. M5 publishes realised shelf prices, so this is the standard M5 assumption; the Tradeoffs tab shows what it is worth by freezing prices at the forecast origin.",
+    "Chronos-Bolt-small, zero-shot and univariate. Its built-in point output is the median; we use the mean of its 9 deciles as the point (closer to the mean that LightGBM and ETS forecast) and its 10th / 90th percentiles as the range.",
+    "Ensemble: the average of two of LightGBM level, LightGBM ratio and Chronos, choosing the pair with the lowest mean WAPE over the 4 backtest windows. The test window is never consulted for that choice.",
+    "Ranges for point-only methods (Croston, TSB, both LightGBMs): empirical quantiles of scaled residuals per segment and horizon step from the backtest windows (each backtest window is calibrated on the other three; test on all four).",
+    "All forecasts clipped at zero; a non-finite interval (AutoETS divides by zero on one constant series) is replaced by the point forecast."
+  ],
+  "limitations": [
+    "One dataset, one retailer, one test window (spring 2016). Ranking differences under about 1 point of WAPE are within window-to-window noise; several segment-level gaps hold in the test window but not in every backtest (see the stability table by segment).",
+    "Stock-outs are not modelled. A zero week can be an empty shelf rather than no demand, so history under-states demand for sparse items and every model learns that. Without inventory data this cannot be corrected here.",
+    "Segments are picked by recent behaviour, so they regress to the mean: the sparse segment sells more in the horizon than in its trailing year (3.0 → 5.1 units a week in the test window). That alone makes models fitted on the trailing year look biased low on sparse items.",
+    "For backtest windows, calibrated ranges use residuals from later backtest windows (leave-one-window-out), so backtest coverage of calibrated methods is slightly optimistic. Test-window ranges use earlier windows only.",
+    "Unit-weighted WAPE. A value-weighted version (units × price) would weigh expensive items more and can change the picture.",
+    "No hyperparameter search for LightGBM; one sensible configuration only. Tuning, direct multi-horizon models or a promotions feature would likely help.",
+    "Chronos runs without covariates. Chronos-2 can take price and calendar covariates but was too slow for 150k series-forecasts on this CPU.",
+    "Gaussian intervals of Naive / AutoETS can dip below zero and are clipped; they are a weak fit for count data.",
+    "Cold-start items (no sales before the cutoff) are excluded; they need attribute-based models.",
+    "Runtimes come from one laptop (12-core ARM CPU, no GPU) and include parallelism; some runs shared the machine with other work, so the chart shows the median of 5 runs and the range on hover. Read them as relative costs."
+  ]
+}

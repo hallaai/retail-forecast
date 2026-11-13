@@ -1,0 +1,15 @@
+# Python 3.13 (tested on Windows ARM64). Install: uv pip install -r requirements.txt
+statsforecast==2.1.1
+mlforecast==1.1.0
+lightgbm==4.7.0
+chronos-forecasting==2.3.2
+torch==2.15.0
+pandas==2.3.3
+pyarrow==26.0.1
+fastapi==0.141.1
+uvicorn==0.54.0
+# dev
+pytest
+pytest-cov
+httpx
+ruff
