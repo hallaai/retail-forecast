@@ -64,7 +64,43 @@ over-forecast small series about 6×. Tune the tree count again if you use weigh
 
 ## Results (full run, all series)
 
-RESULTS_TABLE
+Test window, backtest mean of 4 windows in brackets. Lower is better except coverage (target 80%).
+
+| Variant | WAPE all | WAPE hits | WAPE middle | WAPE sparse | Bias | Pinball | 80% coverage |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| `lgbm_level` (no scaling) | **41.1%** (**46.4**) | 31.3% (**35.1**) | **42.7%** (**46.3**) | **58.4%** (75.9) | −4.2% (−1.9) | **28.1%** (**31.5**) | 81.2% (79.9) |
+| `lgbm_ratio` | **41.1%** (47.0) | **30.8%** (36.5) | 43.1% (46.9) | **58.4%** (**74.1**) | −2.5% (−0.8) | 28.3% (31.8) | 80.6% (79.9) |
+| `lgbm_log1p` | 43.7% (47.3) | 35.3% (37.5) | 43.3% (46.4) | 63.2% (74.7) | −11.2% (−9.6) | 29.3% (31.8) | 81.1% (79.9) |
+| `lgbm_local_scaled` | 41.7% (47.5) | 31.3% (36.6) | 43.7% (47.4) | 59.6% (76.5) | −1.6% (+2.1) | 28.5% (32.1) | 80.8% (79.9) |
+| `lgbm_level_weighted` | 41.7% (47.6) | 31.2% (**35.1**) | 43.3% (47.1) | 60.3% (80.7) | **+0.3%** (+3.0) | 28.6% (31.9) | 81.3% (79.9) |
+
+WAPE, all series, per backtest window:
+
+| Window | level | ratio | log1p | local_scaled | weighted |
+|---|---:|---:|---:|---:|---:|
+| BT1 | **47.7%** | 48.5% | 48.4% | 49.3% | 49.0% |
+| BT2 | **45.9%** | 46.7% | 46.3% | 47.1% | 47.1% |
+| BT3 | **46.6%** | 47.1% | 47.2% | 47.8% | 47.8% |
+| BT4 | **45.5%** | 45.7% | 47.2% | 45.9% | 46.6% |
+
+What this says:
+
+1. **No scaling wins.** The unscaled Tweedie model has the lowest WAPE in all four backtests and the
+   best pinball. Tweedie's log link plus recent-sales lags already handle the level; extra scaling
+   adds nothing on M5. The ratio target ties on the test window and is the most even across segments.
+2. **log1p is the worst, and biased low even after smearing** (−11% on test). The smearing factor
+   was 1.18 in every window, but squared error on the log scale still fits a median-like forecast,
+   and sparse items (many zeros) pull it down hardest. Use it only with a stronger, validated
+   bias correction.
+3. **Per-series standardising and volume weights trade 0.5–1 WAPE point for less bias.** Both move
+   bias close to zero (−1.6% and +0.3% on test against −4.2%). If under-forecasting costs more than
+   the extra error (empty shelves), that trade can be worth it. Volume weights hurt sparse items
+   most (80.7% backtest WAPE), as expected: they get the least weight.
+4. **Compute.** log1p is about 3× slower per fit (~4 min vs ~1.3 min), mostly the extra pass over
+   4.3M training rows for the smearing factor. The other two cost the same as `lgbm_level`.
+
+These are point forecasts with the same backtest-residual calibration for the ranges, which is why
+80% coverage is near 80% for every variant.
 
 ## How to run one variant or change one
 

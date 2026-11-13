@@ -15,7 +15,17 @@ calibrated and scored on the same windows and series:
 
 **Results (test WAPE, backtest mean in brackets):**
 
-RESULTS_TABLE
+| Variant | WAPE all | WAPE sparse | Bias all | Pinball all |
+|---|---:|---:|---:|---:|
+| `lgbm_level` | **41.1%** (**46.4**) | **58.4%** (75.9) | −4.2% (−1.9) | **28.1%** (**31.5**) |
+| `lgbm_ratio` | **41.1%** (47.0) | **58.4%** (**74.1**) | −2.5% (−0.8) | 28.3% (31.8) |
+| `lgbm_log1p` | 43.7% (47.3) | 63.2% (74.7) | −11.2% (−9.6) | 29.3% (31.8) |
+| `lgbm_local_scaled` | 41.7% (47.5) | 59.6% (76.5) | −1.6% (+2.1) | 28.5% (32.1) |
+| `lgbm_level_weighted` | 41.7% (47.6) | 60.3% (80.7) | **+0.3%** (+3.0) | 28.6% (31.9) |
+
+No scaling (`lgbm_level`) wins WAPE in all 4 backtests. log1p is worst and still biased low after
+smearing. Standardising and volume weights cost 0.5–1 WAPE point but remove most of the
+under-forecast. Headline results and the ensemble are unchanged.
 
 **Code**
 - `models_lgbm.py`: each variant is a frozen `Spec` (target, objective, weights, exogenous features)
