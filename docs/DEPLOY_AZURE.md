@@ -1,8 +1,9 @@
 # Deploying the forecast demo to Azure, cheaply
 
-Status: **ready container image definition + GitHub Actions build. Not yet deployed or
-tested on a live Azure account.** Prices are approximate (late 2026); check the Azure
-pricing calculator before relying on them.
+Status: **deployed and verified live** on Azure Container Apps (2026-11-18). URL:
+`https://retail-forecast.agreeablepond-937c8258.swedencentral.azurecontainerapps.io`
+(sign in as `analyst`). Prices are approximate (late 2026); check the Azure pricing
+calculator before relying on them.
 
 ## What gets deployed
 
@@ -25,7 +26,12 @@ nothing is stored in an Azure registry.
 
 | Piece | Choice | Cost when idle | Cost per use |
 |---|---|---|---|
-| App | Container Apps, Consumption, 0.5 vCPU / 1 GiB, min 0 / max 1 replica | $0 (scaled to zero) | per vCPU-second / GiB-second while running; the monthly free grant (~180,000 vCPU-s, 360,000 GiB-s, 2 M requests per subscription) covers light use |
+| App | Container Apps, Consumption, 1.0 vCPU / 2 GiB, min 0 / max 1 replica | $0 (scaled to zero) | per vCPU-second / GiB-second while running; the monthly free grant (~180,000 vCPU-s, 360,000 GiB-s, 2 M requests per subscription) covers light use |
+
+> **Memory:** the first `/api/series` call loads ~92 MB of parquet which expands several-fold
+> in pandas — **0.5 vCPU / 1 GiB OOM-kills the replica** on that first call (503/502). Use
+> **1.0 vCPU / 2 GiB** (verified working on the live deploy). The static dashboard alone needs
+> less, but the per-series API needs the headroom.
 | Image registry | **GHCR (free for a public repo)** — image built by GitHub Actions and pulled by Azure | $0 | $0 |
 | Build | In the cloud — GitHub Actions. No local Docker. | $0 | negligible |
 | Logs | Container Apps env with logs destination `none` (or Log Analytics, first GBs free) | $0 | $0 |
@@ -103,7 +109,7 @@ read -rs APP_PW
 az containerapp create -n $APP -g $RG --environment $ENV \
   --image ghcr.io/hallaai/retail-forecast:latest \
   --target-port 8000 --ingress external \
-  --cpu 0.5 --memory 1.0Gi --min-replicas 0 --max-replicas 1 \
+  --cpu 1.0 --memory 2.0Gi --min-replicas 0 --max-replicas 1 \
   --secrets app-password="$APP_PW" \
   --env-vars APP_PASSWORD=secretref:app-password APP_USER=analyst AUTH_REQUIRED=1
 # Private GHCR package only: add pull credentials
@@ -155,9 +161,14 @@ az containerapp revision restart -n retail-forecast -g retail-forecast-rg \
 
 ## Not done yet
 
-- Not deployed; no Azure account was available while this was written. The image definition
-  was validated by running the server from the same file layout locally (fail-closed start,
-  `/healthz`, sign-in challenge, UI + API served) and by the test suite (`tests/test_auth.py`,
-  `tests/test_api.py`). The image itself is first built by the Actions workflow.
 - No infrastructure-as-code (Bicep/Terraform) yet; the steps above are CLI commands.
-- Cold-start time and real monthly cost are unmeasured.
+- Real monthly cost is unmeasured (scaled to zero, so it should be near-free for light use).
+
+## Deploy log
+
+- **2026-11-18** — First live deploy. Resource group `retail-forecast-rg`, environment
+  `retail-forecast-env`, app `retail-forecast`, region `swedencentral`, image
+  `ghcr.io/hallaai/retail-forecast:latest` (GHCR package public). Verified: `/healthz` open,
+  `/` challenges with HTTP Basic, correct creds load the UI, `/api/series` and per-series
+  detail return real data. Had to raise resources from 0.5 vCPU / 1 GiB to **1.0 vCPU / 2 GiB**
+  — the first API call OOM-killed the 1 GiB replica while loading the parquet store.
