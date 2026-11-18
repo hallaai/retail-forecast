@@ -1,0 +1,8 @@
+# Runtime deps for the demo web server ONLY (serves precomputed forecasts + static UI).
+# The heavy modelling stack (torch, lightgbm, chronos, statsforecast, mlforecast) is NOT
+# needed to serve results and is deliberately excluded to keep the image small.
+# Versions match the root requirements.txt.
+fastapi==0.141.1
+uvicorn==0.54.0
+pandas==2.3.3
+pyarrow==26.0.1

@@ -22,6 +22,11 @@ sys.path.insert(0, str(ROOT / "src"))
 
 from m5demo import config
 
+try:  # works both as a package (uvicorn server.app:app) and as a bare module
+    from server.auth import install_auth
+except ImportError:  # pragma: no cover - fallback when 'server' is not a package
+    from auth import install_auth  # type: ignore[no-redef]
+
 log = logging.getLogger("server")
 ID_PATTERN = re.compile(r"^[A-Z0-9_]{3,40}$")
 HISTORY_WEEKS = 104
@@ -41,6 +46,13 @@ def _store() -> tuple[pd.DataFrame, pd.DataFrame, dict]:
 
 
 app = FastAPI(title="M5 forecast demo", docs_url=None, redoc_url=None)
+install_auth(app)  # shared-password gate when APP_PASSWORD is set; no-op otherwise
+
+
+@app.get("/healthz")
+def healthz() -> dict:
+    """Open probe for the platform (no auth). Returns no internals."""
+    return {"ok": True}
 
 
 @app.get("/api/health")

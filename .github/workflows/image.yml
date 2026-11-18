@@ -1,0 +1,51 @@
+# Build the forecast demo container in the cloud and push it to GitHub Container Registry.
+# No local Docker: GitHub's runners do the build. Azure pulls the image from GHCR — the
+# image is NOT stored on Azure. See docs/DEPLOY_AZURE.md.
+name: build image
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "server/**"
+      - "src/m5demo/**"
+      - "web/**"
+      - "data/results/full/test_forecasts.parquet"
+      - "data/processed/panel.parquet"
+      - "data/processed/calendar.parquet"
+      - "Dockerfile"
+      - ".dockerignore"
+      - ".github/workflows/image.yml"
+  workflow_dispatch: {}      # run it by hand from the Actions tab
+
+env:
+  IMAGE: ghcr.io/${{ github.repository_owner }}/retail-forecast
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write        # push to GHCR with the built-in GITHUB_TOKEN
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Lowercase the image name
+        id: img
+        run: echo "ref=${IMAGE,,}" >> "$GITHUB_OUTPUT"
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .               # build from the repo root (Dockerfile at root)
+          push: true
+          tags: |
+            ${{ steps.img.outputs.ref }}:latest
+            ${{ steps.img.outputs.ref }}:${{ github.sha }}

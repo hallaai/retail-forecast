@@ -1,0 +1,19 @@
+# Keep the build context small and secrets out of the image.
+# NB: the Dockerfile copies only the 3 data files it needs, so the rest of data/ is excluded.
+**/.env
+**/__pycache__/
+**/*.pyc
+.venv/
+.git/
+.github/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+tests/
+docs/
+scripts/
+data/raw/
+data/forecasts/
+*.log
+*.err

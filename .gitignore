@@ -1,3 +1,7 @@
+# Secrets: the app password lives here locally and is passed to Azure as a secret, never committed
+.env
+**/.env
+
 # Python / tooling
 .venv/
 __pycache__/
